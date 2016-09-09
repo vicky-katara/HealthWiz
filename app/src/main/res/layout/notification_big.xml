@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="160dp">
+
+
+    <ImageView
+        android:contentDescription="@string/notification_logo_for_healthwiz_app"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/notificationLogo"
+        android:src="@drawable/ic_heart_pulse_grey600_48dp"
+        />
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/notificationTextLayout"
+        android:layout_toEndOf="@id/notificationLogo"
+        android:layout_marginLeft="3dp"
+        android:layout_marginStart="3dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/emergency_health_information"
+            android:id="@+id/notificationTitleTextView"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationTitle"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationNameTextView"
+            android:layout_below="@+id/notificationTitleTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationBloodGroupTextView"
+            android:layout_below="@+id/notificationNameTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationOrganDonorTextView"
+            android:layout_below="@+id/notificationBloodGroupTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationEmergencyContactTextView"
+            android:layout_below="@+id/notificationOrganDonorTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationAgeTextView"
+            android:layout_below="@+id/notificationEmergencyContactTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationAlergiesTextView"
+            android:layout_below="@+id/notificationAgeTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:id="@+id/notificationConditionsTextView"
+            android:layout_below="@+id/notificationAlergiesTextView"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationText" />
+
+    </RelativeLayout>
+</RelativeLayout>

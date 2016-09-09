@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:contentDescription="@string/notification_logo_for_healthwiz_app"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/notificationLogo"
+        android:src="@drawable/ic_heart_pulse_grey600_48dp"
+        android:layout_centerVertical="true" />
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/notificationTextLayout"
+        android:layout_toEndOf="@id/notificationLogo"
+        android:layout_marginLeft="3dp"
+        android:layout_marginStart="3dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/emergency_health_information"
+            android:id="@+id/notificationTitleTextView"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            style="@style/NotificationTinyTitle"
+            />
+
+        <TextView
+            android:id="@+id/smallNotificationContentTextView"
+            android:layout_below="@+id/notificationTitleTextView"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="marquee"
+            android:fadingEdge="horizontal"
+            android:gravity="bottom"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:scrollHorizontally="false"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            style="@style/NotificationTinyText"/>
+            <requestFocus/>
+    </RelativeLayout>
+</RelativeLayout>
