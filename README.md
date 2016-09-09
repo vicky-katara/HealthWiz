@@ -10,14 +10,19 @@ unconscious. Hence, it is up to the user’s mobile phone to figure out if the u
 
 This app, addresses this scenario, and reveals user’s private health data when necessary.
 
-● User had a fall. Instead of implementing a realistic fall detection algorithm, just use a
+User had a fall. Instead of implementing a realistic fall detection algorithm, just use a
 pseudorandom number.
+
         AND
-● The time needed to drive to the nearest hospital is greater than 5 minutes. Determine
+
+The time needed to drive to the nearest hospital is greater than 5 minutes. Determine
 using the Google Maps API.
+        
         AND
-● The barometric pressure reading is less than 29.5 inches of mercury. Determined via the
+
+The barometric pressure reading is less than 29.5 inches of mercury. Determined via the
 barometer sensor.
+
         AND
-● The light is less than 400 lx. Determined via the light sensor.
-        AND
+
+The light is less than 400 lx. Determined via the light sensor.
