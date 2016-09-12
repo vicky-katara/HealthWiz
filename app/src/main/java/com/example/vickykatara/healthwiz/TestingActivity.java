@@ -9,6 +9,9 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -78,11 +81,6 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
 
     private boolean noPressureSensor = false;
 
-    /**
-     * ATTENTION: This was auto-generated to implement the App Indexing API.
-     * See https://g.co/AppIndexing/AndroidStudio for more information.
-     */
-//    private GoogleApiClient client;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -302,8 +300,9 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                         .build();
             }
 
-            locationRequest = new LocationRequest();
+            locationRequest = LocationRequest.create();
             locationRequest.setInterval(10*1000);
+            locationRequest.setFastestInterval(5*1000);
             locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
 
@@ -321,18 +320,15 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                         public void run() {
                         if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                             // TODO: Consider calling
-                            //    ActivityCompat#requestPermissions
-                            // here to request the missing permissions, and then overriding
-                            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                            //                                          int[] grantResults)
-                            // to handle the case where the user grants the permission. See the documentation
-                            // for ActivityCompat#requestPermissions for more details.
+                            makeAlertDialog("Permission Issues");
                         }
                         if (mGoogleApiClient.isConnected()) {
                             LocationServices
                                     .FusedLocationApi
                                     .requestLocationUpdates
                                             (mGoogleApiClient, locationRequest, listener);
+                            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
+                                    mGoogleApiClient);
                         } else {
                             System.err.println(" Not Connected ");
                         }
@@ -354,6 +350,8 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                 if(mLastLocation != null) {
                     selfLatitude = mLastLocation.getLatitude();
                     selfLongitude = mLastLocation.getLongitude();
+                } else {
+                    System.out.println(" ******** mLastLocation null ******** ");
                 }
 
                 String urlString =
@@ -374,6 +372,7 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                     prevUrl = urlString;
                     prevLat = selfLatitude;
                     prevLong = selfLongitude;
+                    prevComputationCompleted = false;
                 }
 
                 try {
@@ -433,6 +432,7 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                     lastCapturedSecsToHospital = (Integer) jsonDurationObject.get("value");
 
                     lastCapturedTimeToHospitalString = (String)jsonDurationObject.get("text");
+                    System.out.println(" ****** Set lastCapturedTimeToHospitalString to :"+lastCapturedTimeToHospitalString+" ********* ");
 
                     prevComputationCompleted = true;
                 } catch (JSONException jse) {
@@ -483,7 +483,23 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         public void onConnectionSuspended(int i) { connectionActive = false; }
 
         @Override
-        public void onLocationChanged(Location location) {
+        public void onLocationChanged(final Location location) {
+            handler.post(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            makeAlertDialog("Location Updated to "+location.getLatitude()+" , "+location.getLongitude());
+                            System.out.println("***** onLocationChanged() to "+lastCapturedTimeToHospitalString+" **** ");
+                            try {
+                                Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notification);
+                                r.play();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+            );
             mLastLocation = location;
         }
     }
