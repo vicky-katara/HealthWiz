@@ -1,29 +1,19 @@
 package com.example.vickykatara.healthwiz;
 
-import android.app.Notification;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.DialogFragment;
-import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.telephony.PhoneNumberUtils;
-import android.text.Spannable;
-import android.text.SpannableString;
-import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.RemoteViews;
 import android.widget.Spinner;
 import android.widget.SpinnerAdapter;
 import android.widget.TextView;
-import android.widget.Toast;
-
-import java.util.Calendar;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -152,6 +142,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, TestingActivity.class);
         startActivity(intent);
     }
+/*
 
     private void notifyMe() {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
@@ -246,6 +237,7 @@ public class MainActivity extends AppCompatActivity {
         // Set Conditions
         contentView.setTextViewText(R.id.notificationConditionsTextView, "Conditions:"+sharedPreferences.getString(CONDITIONS_KEY, CONDITIONS_KEY));
     }
+*/
 
     private String getTextFromEditText(int id) {
         return ((EditText)findViewById(id)).getText().toString();
@@ -253,10 +245,6 @@ public class MainActivity extends AppCompatActivity {
 
     private String getTextFromTextView(int id) {
         return ((TextView)findViewById(id)).getText().toString();
-    }
-
-    public void makeAlertDialog(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 }
 
