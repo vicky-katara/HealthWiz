@@ -9,16 +9,12 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
-import android.media.Ringtone;
-import android.media.RingtoneManager;
-import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Spannable;
@@ -48,9 +44,21 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
-import static com.example.vickykatara.healthwiz.MainActivity.*;
 
-public class TestingActivity extends AppCompatActivity implements SensorEventListener {
+import static com.example.vickykatara.healthwiz.MainActivity.ALLERGIES_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.BLOOD_GROUP_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.CONDITIONS_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.DATE_OF_BIRTH_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.EMERGENCY_CONTACT_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.NAME_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.ORGAN_DONOR_KEY;
+import static com.example.vickykatara.healthwiz.MainActivity.sharedPreferences;
+
+public class TestingActivity extends AppCompatActivity
+                    implements SensorEventListener,
+                    GoogleApiClient.OnConnectionFailedListener,
+                    GoogleApiClient.ConnectionCallbacks,
+                    LocationListener {
 
     private boolean mockFall = false;
     private boolean mockLight = false;
@@ -70,7 +78,7 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
     private static double REX_LATTITUDE = 35.817870;
     private static double REX_LONGITUDE = -78.702539;
 
-    private static double DEFAULT_LATTITUDE = 35.769945;
+    private static double DEFAULT_LATTITUDE = 45.769945;
     private static double DEFAULT_LONGITUDE = -78.676402;
 
     private SensorManager mSensorManager;
@@ -80,6 +88,15 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
     private Thread distanceFetcher;
 
     private boolean noPressureSensor = false;
+    private boolean connectionActive = true;
+    private Location mLastLocation;
+    private GoogleApiClient mGoogleApiClient;
+    private LocationRequest locationRequest;
+    private double prevLat;
+    private double prevLong;
+    private boolean prevComputationCompleted;
+    private Handler handler = new Handler();
+//    private String prevUrl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,8 +112,8 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         fallGenerator = new Thread(new FallGenerator());
         fallGenerator.start();
 
-        distanceFetcher = new Thread(new DistanceFetcher(getApplicationContext()));
-        distanceFetcher.start();
+//        distanceFetcher = new Thread(new DistanceFetcher(getApplicationContext()));
+//        distanceFetcher.start();
 //        makeAlertDialog(mSensorManager.getSensorList(Sensor.TYPE_PRESSURE).toString());
 
 //        System.out.println(mSensorManager.getSensorList(Sensor.TYPE_PRESSURE).toString());
@@ -104,6 +121,7 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         updateLight();
         updatePressure();
         updateFall();
+        calculateDistance();
         updateTimeToHospital();
 
         ((Switch) findViewById(R.id.lightSwitch)).setOnCheckedChangeListener(
@@ -161,10 +179,31 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
                             checkNotificationCriteria();
                         } else {
                             mockTimeToHospital = false;
+                            updateTimeToHospital();
                         }
                     }
                 }
         );
+
+        if (mGoogleApiClient == null) {
+            mGoogleApiClient = new GoogleApiClient.Builder(this)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .addApi(LocationServices.API)
+                    .build();
+        }
+
+        makeAlertDialog("Google API Client Initialized");
+
+        locationRequest = LocationRequest.create();
+        locationRequest.setInterval(10*1000);
+        locationRequest.setFastestInterval(5*1000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        if (mGoogleApiClient != null && !mGoogleApiClient.isConnected() ) {
+            mGoogleApiClient.connect();
+            makeAlertDialog("Google API Client Connected");
+        }
     }
 
     @Override
@@ -224,6 +263,13 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         fallGenerator.start();
         distanceFetcher = new Thread(new FallGenerator());
         distanceFetcher.start();
+
+        if (mGoogleApiClient.isConnected()) {
+            startLocationUpdates();
+        } else {
+            if (mGoogleApiClient.isConnected() == false )
+                makeAlertDialog("mGoogleApiClient is disconnected");
+        }
     }
 
     @Override
@@ -233,10 +279,185 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         mSensorManager.unregisterListener(this);
         fallGenerator.interrupt();
         distanceFetcher.interrupt();
+        LocationServices.FusedLocationApi.removeLocationUpdates(
+                mGoogleApiClient, this);
     }
 
     public void makeAlertDialog(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        connectionActive = true;
+        startLocationUpdates();
+    }
+
+    private void startLocationUpdates() {
+        final LocationListener listener = this;
+
+        if (ActivityCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED) {
+            makeAlertDialog("Permission Issues");
+        }
+
+        if (mGoogleApiClient.isConnected()) {
+            LocationServices
+                    .FusedLocationApi
+                    .requestLocationUpdates
+                            (mGoogleApiClient, locationRequest, listener);
+            makeAlertDialog("Location Listener Registered");
+            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
+                    mGoogleApiClient);
+            makeAlertDialog("getLastLocation");
+        } else {
+            System.err.println(" Not Connected ");
+            makeAlertDialog("Not Connected");
+        }
+    }
+
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        if(i == GoogleApiClient.ConnectionCallbacks.CAUSE_NETWORK_LOST)
+            makeAlertDialog("Network Lost");
+        if(i == GoogleApiClient.ConnectionCallbacks.CAUSE_SERVICE_DISCONNECTED)
+            makeAlertDialog("Location Service Disconnected");
+        connectionActive = false;
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        System.out.println("***** onLocationChanged() to "+lastCapturedTimeToHospitalString+" **** ");
+        mLastLocation = location;
+//        prevComputationCompleted = false;
+        calculateDistance();
+    }
+
+    private void calculateDistance() {
+        StringBuilder stringBuilder = new StringBuilder();
+        // init client
+
+        double selfLatitude = DEFAULT_LATTITUDE, selfLongitude = DEFAULT_LONGITUDE;
+
+        if(mockTimeToHospital || connectionActive == false) {
+            makeAlertDialog("mockTimeToHospital || connectionActive == false. Not fetching time.");
+            return;
+        }
+
+        if(mLastLocation != null) {
+            selfLatitude = mLastLocation.getLatitude();
+            selfLongitude = mLastLocation.getLongitude();
+        } else {
+            System.out.println(" ******** mLastLocation null ******** ");
+        }
+
+        String urlString =
+                "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="
+                        +selfLatitude+","+selfLongitude
+                        +"&destinations="+
+                        REX_LATTITUDE+","+REX_LONGITUDE
+                        +"&key=AIzaSyCxps88hh-xEcbDLMkBtVblla6xmMVlXN4";
+
+        if(!isSignificantlyDifferent(prevLat, selfLatitude) &&
+                !isSignificantlyDifferent(prevLong, selfLongitude) &&
+                        prevComputationCompleted ) {
+            System.out.println("No significant change in location. Using old Time");
+//            makeAlertDialog("No significant change in location. Using old Time");
+            return;
+        } else {
+            makeAlertDialog("Location Updated to "+selfLatitude+" , "+selfLongitude);
+            System.out.println("New Query:"+urlString);
+            makeAlertDialog("Getting new time...");
+            prevLat = selfLatitude;
+            prevLong = selfLongitude;
+            prevComputationCompleted = false;
+        }
+        final HttpPost httppost = new HttpPost(urlString);
+        new HTTPRequestTask().execute(new Object[]{httppost});
+    }
+
+    void extractAndDisplayLocation(HttpResponse response) {
+        StringBuilder stringBuilder = new StringBuilder();
+
+        try {
+            HttpEntity entity = response.getEntity();
+            InputStream stream = entity.getContent();
+            int b;
+            while ((b = stream.read()) != -1) {
+                stringBuilder.append((char) b);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        JSONObject jsonObject;
+        JSONObject firstTuple = new JSONObject();
+        if (stringBuilder.length() == 0)
+            return;
+        try {
+            jsonObject = new JSONObject(stringBuilder.toString());
+//                    makeAlertDialog(jsonObject.toString());
+
+            JSONArray jsonRowsArray = jsonObject.getJSONArray("rows");
+//                    makeAlertDialog(jsonRowsArray.toString());
+
+            if (jsonRowsArray.length() < 1) {
+                System.err.println("jsonRowsArray Empty: " + firstTuple.toString());
+                return;
+            }
+
+            JSONObject jsonRowsObject = jsonRowsArray.getJSONObject(0);
+
+            JSONArray jsonElementsArray = jsonRowsObject.getJSONArray("elements");
+
+//                    makeAlertDialog(jsonObject.toString());
+            if (jsonElementsArray.length() < 1) {
+                System.err.println("jsonElementsArray Empty: " + firstTuple.toString());
+                return;
+            }
+
+            firstTuple = jsonElementsArray.getJSONObject(0);
+
+            if (!firstTuple.get("status").equals("OK")) {
+                System.err.println("Distance Matrix Reply Status not Ok: " + firstTuple.toString());
+                return;
+            }
+
+            JSONObject jsonDurationObject = firstTuple.getJSONObject("duration");
+
+            lastCapturedSecsToHospital = (Integer) jsonDurationObject.get("value");
+
+            lastCapturedTimeToHospitalString = (String) jsonDurationObject.get("text");
+            System.out.println(" ****** Set lastCapturedTimeToHospitalString to :" + lastCapturedTimeToHospitalString + " ********* ");
+            prevComputationCompleted = true;
+        } catch (JSONException jse) {
+            System.out.println(firstTuple.toString());
+            jse.printStackTrace();
+        }
+        updateTimeToHospital();
+    }
+
+
+    boolean isSignificantlyDifferent(double x, double y) {
+        return !decimalPlus3String(x).equals(decimalPlus3String(y));
+    }
+
+    private String decimalPlus3String(double x) {
+        String str = Double.toString(x);
+        int indexOfDecimalPlusThree = str.indexOf(".")+3;
+        if(str.length() < indexOfDecimalPlusThree)
+            return str;
+        return str.substring(0, indexOfDecimalPlusThree);
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        lastCapturedSecsToHospital = -1;
+        lastCapturedTimeToHospitalString = " ~No Connection~ ";
+        updateTimeToHospital();
     }
 
     private class FallGenerator implements Runnable {
@@ -265,245 +486,6 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         }
     }
 
-    private class DistanceFetcher extends FragmentActivity
-            implements Runnable,
-            GoogleApiClient.OnConnectionFailedListener,
-            GoogleApiClient.ConnectionCallbacks,
-            LocationListener {
-        Handler handler = new Handler(Looper.getMainLooper());
-        private boolean connectionActive = true;
-        private GoogleApiClient mGoogleApiClient;
-
-        LocationRequest locationRequest;
-        Location mLastLocation;
-
-        private Context context;
-        String prevUrl;
-
-
-        double prevLat = -1999, prevLong = -19999;
-        boolean prevComputationCompleted = false;
-
-        DistanceFetcher(Context context) {
-            this.context = context;
-        }
-
-        @Override
-        public void run() {
-            StringBuilder stringBuilder = new StringBuilder();
-            // Create an instance of GoogleAPIClient.
-            if (mGoogleApiClient == null) {
-                mGoogleApiClient = new GoogleApiClient.Builder(context)
-                        .addConnectionCallbacks(this)
-                        .addOnConnectionFailedListener(this)
-                        .addApi(LocationServices.API)
-                        .build();
-            }
-
-            locationRequest = LocationRequest.create();
-            locationRequest.setInterval(10*1000);
-            locationRequest.setFastestInterval(5*1000);
-            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-
-            if (mGoogleApiClient != null && !mGoogleApiClient.isConnected() ) {
-                mGoogleApiClient.connect();
-            }
-
-            double selfLatitude = DEFAULT_LATTITUDE, selfLongitude = DEFAULT_LONGITUDE;
-
-            final LocationListener listener = this;
-
-            handler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                        if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                            // TODO: Consider calling
-                            makeAlertDialog("Permission Issues");
-                        }
-                        if (mGoogleApiClient.isConnected()) {
-                            LocationServices
-                                    .FusedLocationApi
-                                    .requestLocationUpdates
-                                            (mGoogleApiClient, locationRequest, listener);
-                            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(
-                                    mGoogleApiClient);
-                        } else {
-                            System.err.println(" Not Connected ");
-                        }
-                        }
-                    }
-            );
-
-            while (true) {
-                try {
-                    Thread.sleep(10000); // change to 60000
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                if(mockTimeToHospital) {
-                    continue;
-                }
-
-                if(mLastLocation != null) {
-                    selfLatitude = mLastLocation.getLatitude();
-                    selfLongitude = mLastLocation.getLongitude();
-                } else {
-                    System.out.println(" ******** mLastLocation null ******** ");
-                }
-
-                String urlString =
-                        "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="
-                                +selfLatitude+","+selfLongitude
-                                +"&destinations="+
-                                REX_LATTITUDE+","+REX_LONGITUDE
-                                +"&key=AIzaSyCxps88hh-xEcbDLMkBtVblla6xmMVlXN4";
-
-                if(urlString.equals(prevUrl) && prevComputationCompleted ||
-                        differBy1000s(prevLat, selfLatitude) &&
-                                differBy1000s(prevLong, selfLongitude) &&
-                                prevComputationCompleted) {
-                    System.out.println(" No change in location. Using old Time");
-                    continue;
-                } else {
-                    System.out.println("New Query:"+urlString);
-                    prevUrl = urlString;
-                    prevLat = selfLatitude;
-                    prevLong = selfLongitude;
-                    prevComputationCompleted = false;
-                }
-
-                try {
-
-                    HttpPost httppost = new HttpPost(urlString);
-
-                    HttpClient client = new DefaultHttpClient();
-                    HttpResponse response;
-                    stringBuilder = new StringBuilder();
-
-
-                    response = client.execute(httppost);
-                    HttpEntity entity = response.getEntity();
-                    InputStream stream = entity.getContent();
-                    int b;
-                    while ((b = stream.read()) != -1) {
-                        stringBuilder.append((char) b);
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                JSONObject jsonObject;
-                JSONObject firstTuple = new JSONObject();
-                if(stringBuilder.length() == 0)
-                    continue;
-                try {
-                    jsonObject = new JSONObject(stringBuilder.toString());
-//                    makeAlertDialog(jsonObject.toString());
-
-                    JSONArray jsonRowsArray = jsonObject.getJSONArray("rows");
-//                    makeAlertDialog(jsonRowsArray.toString());
-
-                    if(jsonRowsArray.length() < 1) {
-                        System.err.println("jsonRowsArray Empty: " + firstTuple.toString());
-                        continue;
-                    }
-
-                    JSONObject jsonRowsObject = jsonRowsArray.getJSONObject(0);
-
-                    JSONArray jsonElementsArray = jsonRowsObject.getJSONArray("elements");
-
-//                    makeAlertDialog(jsonObject.toString());
-                    if(jsonElementsArray.length() < 1) {
-                        System.err.println("jsonElementsArray Empty: " + firstTuple.toString());
-                        continue;
-                    }
-
-                    firstTuple = jsonElementsArray.getJSONObject(0);
-
-                    if(!firstTuple.get("status").equals("OK")) {
-                        System.err.println("Distance Matrix Reply Status not Ok: " + firstTuple.toString());
-                        continue;
-                    }
-
-                    JSONObject jsonDurationObject = firstTuple.getJSONObject("duration");
-
-                    lastCapturedSecsToHospital = (Integer) jsonDurationObject.get("value");
-
-                    lastCapturedTimeToHospitalString = (String)jsonDurationObject.get("text");
-                    System.out.println(" ****** Set lastCapturedTimeToHospitalString to :"+lastCapturedTimeToHospitalString+" ********* ");
-
-                    prevComputationCompleted = true;
-                } catch (JSONException jse) {
-                    System.out.println(firstTuple.toString());
-                    jse.printStackTrace();
-                }
-                handler.post(
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                updateTimeToHospital();
-                            }
-                        }
-                );
-            }
-        }
-
-        boolean differBy1000s(double x, double y) {
-            return decimalPlus3String(x).equals(decimalPlus3String(x));
-        }
-
-        private String decimalPlus3String(double x) {
-            String str = Double.toString(x);
-            int indexOfDecimalPlusThree = str.indexOf(".")+3;
-            if(str.length() < indexOfDecimalPlusThree)
-                return str;
-            return str.substring(0, indexOfDecimalPlusThree);
-        }
-
-        @Override
-        public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-            handler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            lastCapturedSecsToHospital = -1;
-                            lastCapturedTimeToHospitalString = " ~No Connection~ ";
-                            updateTimeToHospital();
-                        }
-                    }
-            );
-        }
-
-        @Override
-        public void onConnected(@Nullable Bundle bundle) { connectionActive = true; }
-
-        @Override
-        public void onConnectionSuspended(int i) { connectionActive = false; }
-
-        @Override
-        public void onLocationChanged(final Location location) {
-            handler.post(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            makeAlertDialog("Location Updated to "+location.getLatitude()+" , "+location.getLongitude());
-                            System.out.println("***** onLocationChanged() to "+lastCapturedTimeToHospitalString+" **** ");
-                            try {
-                                Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-                                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notification);
-                                r.play();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-            );
-            mLastLocation = location;
-        }
-    }
-
     private void checkNotificationCriteria() {
         if(lightTooLess() &&
                 pressureTooLess() &&
@@ -529,8 +511,6 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
     private boolean userTooFarFromHospital() {
         return mockTimeToHospital || lastCapturedSecsToHospital > MAX_SECS_TO_HOSPITAL_FOR_SAFETY;
     }
-
-
 
     private void publishNotification() {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
@@ -630,5 +610,27 @@ public class TestingActivity extends AppCompatActivity implements SensorEventLis
         contentView.setTextViewText(R.id.notificationAlergiesTextView, "Allergies:"+sharedPreferences.getString(ALLERGIES_KEY, ALLERGIES_KEY));
         // Set Conditions
         contentView.setTextViewText(R.id.notificationConditionsTextView, "Conditions:"+sharedPreferences.getString(CONDITIONS_KEY, CONDITIONS_KEY));
+    }
+
+    private class HTTPRequestTask extends AsyncTask {
+
+        @Override
+        protected void onPostExecute(Object response) {
+            if(response == null) {
+                makeAlertDialog(" No Response from Google Distance Matrix API");
+            }
+            extractAndDisplayLocation((HttpResponse)response);
+        }
+
+        @Override
+        protected Object doInBackground(Object[] params) {
+            HttpResponse response = null;
+            HttpClient client = new DefaultHttpClient();
+            HttpPost httppost = (HttpPost) params[0];
+            try {
+                response = client.execute(httppost);
+            } catch (IOException ioe) {ioe.printStackTrace();}
+            return response;
+        }
     }
 }
